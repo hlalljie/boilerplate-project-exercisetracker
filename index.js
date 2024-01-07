@@ -66,37 +66,70 @@ app.post('/api/users/:_id/exercises', async (req, res) => {
     let foundUser = await userRecord.findById(req.params._id).exec();
     let exerciseDate;
     // If date is left empty, use now
-    if (req.body.date == ""){
+    if (req.body.date == "" || req.body.date == null){
       exerciseDate = new Date();
     }
     else{
-        exerciseDate = new Date(req.body.date);
+      exerciseDate = new Date(req.body.date);
     }
     // Check if date input is valid date
     if (exerciseDate instanceof Date && !isNaN(exerciseDate)){
       let username = foundUser.username;
       foundUser.exercises.push({description: req.body.description, duration: parseFloat(req.body.duration), date: exerciseDate});
       foundUser.save();
-
-      // Map stored dates to readable strings
-      //exercisesDisplay = foundUser.exercises.map(({date, duration, description}) => ({date: date.toDateString(), duration, description}));
-
-      // Show exercises
-      //res.json({_id: foundUser._id, username: foundUser.username, exercises: exercisesDisplay});
       
       // Show user with exercise fields added
-      return res.json({_id: req.params._id, username: username, date: exerciseDate.toDateString(), duration: parseFloat(req.body.duration), description: req.body.description});
+      return res.send({_id: req.params._id, username: username, date: exerciseDate.toDateString(), duration: parseFloat(req.body.duration), description: req.body.description});
     }
     else{
-      console.error("Date entered not valid format");
+      console.error("Date entered not valid format, you entered: " + req.body.date);
       return res.json({error: "Date entered not valid format"});
     }
   }
   catch(err){
     console.error(err);
-    res.send({error: "No URL found for that id"});
+    return res.send({error: "No user found for that id"});
   }
 });
+
+// Get user's excersise logs showing all exercises and count
+app.get('/api/users/:_id/logs', async (req, res) => {
+
+  try{
+    let foundUser = await userRecord.findById(req.params._id).exec();
+    // Map stored dates to readable strings
+    exercisesDisplay = foundUser.exercises.map(({date, duration, description}) => ({date: date.toDateString(), duration, description}));
+    
+    count = exercisesDisplay.length;
+    //console.log ("ex val: ", Date.parse(exercisesDisplay[0].date), " , from val: ", Date.parse(req.query.from))
+
+    // Filter exercises based on from and to parameters
+    exercisesDisplay = exercisesDisplay.filter((e) => 
+      (!req.query.from || Date.parse(e.date) >= Date.parse(req.query.from)) &&
+      (!req.query.to || Date.parse(e.date) <= Date.parse(req.query.to)));
+
+    // Limit how many exercises are show based on the limit (get query parameter)
+    if (req.query.limit){
+      var displayLimit = parseInt(req.query.limit);
+      exercisesDisplay = exercisesDisplay.slice(0, displayLimit);
+    }
+    
+    // Show exercises
+    return res.json({
+      _id: foundUser._id,
+      username: foundUser.username,
+      count: count,
+      from: req.query.from,
+      show: displayLimit? displayLimit: "All",
+      to: req.query.to,
+      log: exercisesDisplay});    
+  }
+  catch(err){
+    console.error(err);
+    res.send({error: "No user found for that id"});
+  }
+});
+
 
 const listener = app.listen(process.env.PORT || 3000, () => {
   console.log('Your app is listening on port ' + listener.address().port);
