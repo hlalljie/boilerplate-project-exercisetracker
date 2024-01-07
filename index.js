@@ -15,18 +15,18 @@ const userSchema = new mongoose.Schema({
     required: true
   },
   exercises: [{
-      description: {
-        type: String,
+      date: {
+        type: Date,
         required: true
       },
       duration: {
         type: Number,
         required: true
       },
-      date: {
-        type: Date,
+      description: {
+        type: String,
         required: true
-      },
+      }
     }],
 });
 
@@ -52,41 +52,51 @@ app.post('/api/users', (req, res) => {
   }
 });
 
+// Show list of all users
+app.get('/api/users', async (req, res) => {
+  const arr = (await userRecord.find()).map(({_id, username}) => ({_id, username}));
+  res.json(arr);
+});
+
 app.use('/api/users/:_id/exercises', bodyParser.urlencoded({extended: false}));
 
 // Save exercise record
 app.post('/api/users/:_id/exercises', async (req, res) => {
   try{
-    const foundUser = await userRecord.findById(req.params._id).exec();
-    //foundUser.exercises.push({req.params.})
-    //res.json(foundUser);
-    // Continue if date input is valid date
-    try{
-      let exerciseDate;
-      if (req.body.date == ""){
-        exerciseDate = new Date();
-      }
-      else{
+    let foundUser = await userRecord.findById(req.params._id).exec();
+    let exerciseDate;
+    // If date is left empty, use now
+    if (req.body.date == ""){
+      exerciseDate = new Date();
+    }
+    else{
         exerciseDate = new Date(req.body.date);
-      }
+    }
+    // Check if date input is valid date
+    if (exerciseDate instanceof Date && !isNaN(exerciseDate)){
       let username = foundUser.username;
-      foundUser.exercises.push({description: req.body.description, duration: req.body.duration, date: exerciseDate});
+      foundUser.exercises.push({description: req.body.description, duration: parseFloat(req.body.duration), date: exerciseDate});
       foundUser.save();
-      res.json({_id: req.params._id, username: username, date: exerciseDate.toDateString(), duration: req.body.duration, description: req.body.description});
-    }
-    catch(err){
-      console.err("Date entered not valid format")
-      res.json({error: "Date entered not valid format"});
-    }
 
+      // Map stored dates to readable strings
+      //exercisesDisplay = foundUser.exercises.map(({date, duration, description}) => ({date: date.toDateString(), duration, description}));
+
+      // Show exercises
+      //res.json({_id: foundUser._id, username: foundUser.username, exercises: exercisesDisplay});
+      
+      // Show user with exercise fields added
+      return res.json({_id: req.params._id, username: username, date: exerciseDate.toDateString(), duration: parseFloat(req.body.duration), description: req.body.description});
+    }
+    else{
+      console.error("Date entered not valid format");
+      return res.json({error: "Date entered not valid format"});
+    }
   }
   catch(err){
     console.error(err);
     res.send({error: "No URL found for that id"});
   }
 });
-
-
 
 const listener = app.listen(process.env.PORT || 3000, () => {
   console.log('Your app is listening on port ' + listener.address().port);
